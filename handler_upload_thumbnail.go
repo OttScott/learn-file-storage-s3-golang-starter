@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"bytes"
+	"mime"
 	"net/http"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
@@ -45,7 +46,6 @@ func (cfg *apiConfig) handlerUploadThumbnail(writer http.ResponseWriter, req *ht
 	}
 	defer file.Close()
 
-	mediaType := header.Header.Get("Content-Type")
 
 	// Read the file data into a byte slice using io.ReadAll
 	fileData, err := io.ReadAll(file)
@@ -64,14 +64,18 @@ func (cfg *apiConfig) handlerUploadThumbnail(writer http.ResponseWriter, req *ht
 		return
 	}
 
+	mediaType, _, err := mime.ParseMediaType(header.Header.Get("Content-Type"))
+	if err != nil {
+		respondWithError(writer, http.StatusBadRequest, "Unable to parse media type", err)
+		return
+	}
+
 	fileExtension := ""
 	switch mediaType {
 	case "image/jpeg":
 		fileExtension = "jpg"
 	case "image/png":
 		fileExtension = "png"
-	case "image/gif":
-		fileExtension = "gif"
 	default:
 		respondWithError(writer, http.StatusBadRequest, "Unsupported media type", nil)
 		return
