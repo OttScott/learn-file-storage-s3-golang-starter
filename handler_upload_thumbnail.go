@@ -1,9 +1,10 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
+	"os"
+	"bytes"
 	"net/http"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
@@ -63,9 +64,36 @@ func (cfg *apiConfig) handlerUploadThumbnail(writer http.ResponseWriter, req *ht
 		return
 	}
 
-	dataURL := fmt.Sprintf("data:%s;base64,%s", mediaType, base64.StdEncoding.EncodeToString(fileData))
+	fileExtension := ""
+	switch mediaType {
+	case "image/jpeg":
+		fileExtension = "jpg"
+	case "image/png":
+		fileExtension = "png"
+	case "image/gif":
+		fileExtension = "gif"
+	default:
+		respondWithError(writer, http.StatusBadRequest, "Unsupported media type", nil)
+		return
+	}
+	filePath := fmt.Sprintf("%s/%s.%s", cfg.assetsRoot, videoID, fileExtension)
 
-	videoInfo.ThumbnailURL = &dataURL
+	outFile, err := os.Create(filePath)
+	if err != nil {
+		respondWithError(writer, http.StatusInternalServerError, "Unable to create file", err)
+		return
+	}
+	defer outFile.Close()
+
+	
+	_, err = io.Copy(outFile, bytes.NewReader(fileData))
+	if err != nil {
+		respondWithError(writer, http.StatusInternalServerError, "Unable to write file data", err)
+		return
+	}
+
+	thumbnailURL := fmt.Sprintf("http://%s:%s/%s/%s.%s", "localhost", "8091", cfg.assetsRoot, videoID, fileExtension)
+	videoInfo.ThumbnailURL = &thumbnailURL
 	err = cfg.db.UpdateVideo(videoInfo)
 	if err != nil {
 		respondWithError(writer, http.StatusInternalServerError, "Unable to update video with thumbnail URL", err)
